@@ -36,7 +36,7 @@ void bitonic_sort(int N, int* data) {
 }
 
 
-int main() {
+auto main() -> int {
     int N;
     std::cin >> N;
     int N2 = 1;
