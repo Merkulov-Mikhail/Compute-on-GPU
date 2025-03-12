@@ -1,3 +1,6 @@
 build
 */build
-*.o
+*\.o
+*\.out
+*_test
+.vscode
