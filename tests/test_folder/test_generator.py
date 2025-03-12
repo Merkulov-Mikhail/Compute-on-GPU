@@ -15,11 +15,11 @@ def get_filename(group="Default"):
 
 
 def generator(func):
-    def __wrapper(N, group_name="Default", tryes=1):
+    def __wrapper(N, group_name="Default", tryes=1, mx=UPPER_BOUND, mn=LOWER_BOUND):
         ans = []
         for _ in range(tryes):
             filename = get_filename(group_name)
-            arr = func(N)
+            arr = func(N, mn=mn, mx=mx)
             with open(filename, "w") as f:
                 f.write(f"{N} ")
                 f.write(" ".join(map(str, arr)))
@@ -34,26 +34,26 @@ def generator(func):
 
 
 @generator
-def generate_sorted_ascending(N):
-    arr = [random.randint(LOWER_BOUND, UPPER_BOUND)]
+def generate_sorted_ascending(N, mx=UPPER_BOUND, mn=LOWER_BOUND):
+    arr = [random.randint(mn, mx)]
     for i in range(N - 1):
         arr.append(arr[-1] + random.randint(1, 200))
     return arr
 
 
 @generator
-def generate_sorted_descending(N):
-    arr = [random.randint(LOWER_BOUND, UPPER_BOUND)]
+def generate_sorted_descending(N, mx=UPPER_BOUND, mn=LOWER_BOUND):
+    arr = [random.randint(mn, mx)]
     for i in range(N - 1):
         arr.append(arr[-1] - random.randint(1, 200))
     return arr
 
 
 @generator
-def generate_random(N):
+def generate_random(N, mx=UPPER_BOUND, mn=LOWER_BOUND):
     arr = []
     for _ in range(N):
-        arr.append(random.randint(LOWER_BOUND, UPPER_BOUND))
+        arr.append(random.randint(mn, mx))
     return arr
 
 
@@ -71,7 +71,8 @@ generate_sorted_descending(2 ** 7, group_name="descending_128elems", tryes=5)
 generate_sorted_ascending (2 ** 16, group_name="ascending_65536elems" , tryes=5)
 generate_sorted_descending(2 ** 16, group_name="descending_65536elems", tryes=5)
 
-generate_random(2 ** 4,  group_name="random_16elems",       tryes=5)
+generate_random(2 ** 3,  group_name="random_8elems",        tryes=1, mn=1, mx=50)
+generate_random(2 ** 4,  group_name="random_16elems",       tryes=5, mn=1, mx=30)
 generate_random(2 ** 7,  group_name="random_128elems",      tryes=5)
 generate_random(2 ** 10, group_name="random_1024elems",     tryes=5)
 generate_random(2 ** 16, group_name="random_65536elems",    tryes=5)

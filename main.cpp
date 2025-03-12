@@ -7,7 +7,7 @@
 #include <random>
 
 
-#define TS (1 << 22)
+#define TS (1 << 24)
 
 
 template <typename It> 
@@ -28,29 +28,29 @@ std::ostream& operator<<(std::ostream& out, std::vector<cl_int>& x) {
 
 auto main(int argc, char* argv[]) -> int {
     Ocl app(argv[1]);
+    int sz = TS;
+    if (argc > 2)
+        sz = std::atoi(argv[2]);
 
-    std::vector<cl_int> first_vector(TS);
 
-    std::iota(first_vector.rbegin(), first_vector.rend(), 1);
+    std::vector<cl_int> first_vector(sz);
 
-    // std::cout << "Unsorted array:\n";
-    // std::cout << first_vector << "\n";
+    rand_init(first_vector.rbegin(), first_vector.rend(), -100000, 100000);
+
+    std::cout << "Data size: " << sz << " elements\n";
 
     auto TimeStart = std::chrono::high_resolution_clock::now();
-    cl::Event Evt = app.run(first_vector.data(), TS);
+    uint64_t ev_time = app.run(first_vector.data(), sz);
     auto TimeFin = std::chrono::high_resolution_clock::now();
     auto Dur = std::chrono::duration_cast<std::chrono::milliseconds>(TimeFin - TimeStart).count();
-    std::cout << "GPU wall time measured: " << Dur << " ms" << std::endl;
-    auto GPUTimeStart = Evt.getProfilingInfo<CL_PROFILING_COMMAND_START>();
-    auto GPUTimeFin = Evt.getProfilingInfo<CL_PROFILING_COMMAND_END>();
-    auto GDur = (GPUTimeFin - GPUTimeStart) / 1000000; // ns -> ms
-    std::cout << "GPU pure time measured: " << GDur << " ms" << std::endl;
+    std::cout << "GPU wall time measured\t(" << sz << "): \t" << Dur << " ms" << std::endl;
+    std::cout << "GPU pure time measured\t(" << sz << "): \t" << ev_time << " ms" << std::endl;
 
-    cl::vector<TYPE> CCPU(TS);
+    cl::vector<TYPE> CCPU(sz);
     rand_init(CCPU.begin(), CCPU.end(), -100000, 100000);
     TimeStart = std::chrono::high_resolution_clock::now();
     std::sort(CCPU.begin(), CCPU.end());
     TimeFin = std::chrono::high_resolution_clock::now();
     Dur = std::chrono::duration_cast<std::chrono::milliseconds>(TimeFin - TimeStart).count();
-    std::cout << "CPU time measured: " << Dur << " ms" << std::endl;
+    std::cout << "CPU time measured with\t(" << sz << "): \t" << Dur << " ms" << std::endl;
 }

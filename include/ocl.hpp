@@ -57,7 +57,7 @@ public:
         program_.build(buildOptions.c_str());
     }    
 
-    cl::Event run(TYPE* input, int size);
+    uint64_t run(TYPE* input, int size);
 }; // Ocl
 
 
@@ -100,7 +100,7 @@ cl::Context Ocl::create_context(const cl::Platform& platform) {
 }
 
 
-cl::Event Ocl::run(TYPE* input, int size) {
+uint64_t Ocl::run(TYPE* input, int size) {
     // hehe
     assert(size % 2 == 0);
 
@@ -109,8 +109,9 @@ cl::Event Ocl::run(TYPE* input, int size) {
     cl::Buffer buf_sort{context_, CL_MEM_READ_WRITE, bufSZ};
     cl::copy(queue_, input, input + size, buf_sort);
 
-    functor_fast_t_ bitonic_fast(program_, "bitonic_fast");
-    functor_slow_t_ bitonic_slow(program_, "bitonic_slow");
+    functor_fast_t_ bitonic_small_scale(program_, "bitonic_small_scale");
+    functor_slow_t_ bitonic_small_size (program_, "bitonic_small_localsize");
+    functor_slow_t_ bitonic_slow       (program_, "bitonic_slow");
 
     cl::NDRange globalRange(size);
 
@@ -118,21 +119,35 @@ cl::Event Ocl::run(TYPE* input, int size) {
 
     cl_ulong wg_size = LSZ;
 
+    uint64_t time_spent = 0;
     for (int scale = 2; scale <= size; scale <<= 1) {
         if (scale <= wg_size) {
-            ev = bitonic_fast(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(scale)}, buf_sort, scale);
+            ev = bitonic_small_scale(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(scale)}
+                            , buf_sort, scale);
             ev.wait();
+            time_spent += (ev.getProfilingInfo<CL_PROFILING_COMMAND_END>() - \
+                           ev.getProfilingInfo<CL_PROFILING_COMMAND_START>()) / 1000000;
         }
         else {
             for (int j = scale / 2; j > 0; j >>= 1) {
-                ev = bitonic_slow(args{queue_, static_cast<cl::size_type>(size), 1}, buf_sort, j, scale);
+                if (j <= wg_size / 2) 
+                    ev = bitonic_small_size(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(wg_size)}
+                                          , buf_sort, j,  scale);
+                else 
+                    ev = bitonic_slow(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(1)}
+                                    , buf_sort, j, scale);
                 ev.wait();
+                time_spent += (ev.getProfilingInfo<CL_PROFILING_COMMAND_END>() - \
+                            ev.getProfilingInfo<CL_PROFILING_COMMAND_START>()) / 1000000;
+
+                if (j <= wg_size / 2)
+                    break;
             }
         }
     }
 
     cl::copy(queue_, buf_sort, input, input + size);
-    return ev;
+    return time_spent;
 }
 
 

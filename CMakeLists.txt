@@ -11,12 +11,11 @@ set(TESTS_DIR "${ROOT_DIR}/tests")
 find_package(OpenCL REQUIRED)
 find_package(GTest REQUIRED)
 
-
 include_directories(include)
 
 add_subdirectory(tests)
 add_subdirectory(sources)
-
+add_subdirectory(benchmarking)
 
 add_executable(main main.cpp)
 
