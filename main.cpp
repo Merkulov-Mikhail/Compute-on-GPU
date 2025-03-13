@@ -7,7 +7,7 @@
 #include <random>
 
 
-#define TS (1 << 24)
+#define TS (1 << 20)
 
 
 template <typename It> 

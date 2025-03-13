@@ -35,9 +35,8 @@ private:
     std::string      code_;
     cl::Program      program_;
 
-    using functor_fast_t_ = cl::KernelFunctor<cl::Buffer, int>;
-    using functor_slow_t_ = cl::KernelFunctor<cl::Buffer, int, int>;
-    using args            = cl::EnqueueArgs;
+    using functor_t_ = cl::KernelFunctor<cl::Buffer, int, int>;
+    using args       = cl::EnqueueArgs;
 
     static cl::Platform get_platform();
     static cl::Device   get_device(const cl::Platform& pl);
@@ -109,9 +108,8 @@ uint64_t Ocl::run(TYPE* input, int size) {
     cl::Buffer buf_sort{context_, CL_MEM_READ_WRITE, bufSZ};
     cl::copy(queue_, input, input + size, buf_sort);
 
-    functor_fast_t_ bitonic_small_scale(program_, "bitonic_small_scale");
-    functor_slow_t_ bitonic_small_size (program_, "bitonic_small_localsize");
-    functor_slow_t_ bitonic_slow       (program_, "bitonic_slow");
+    functor_t_ bitonic_small_size (program_, "bitonic_small_localsize");
+    functor_t_ bitonic_slow       (program_, "bitonic_slow");
 
     cl::NDRange globalRange(size);
 
@@ -119,11 +117,14 @@ uint64_t Ocl::run(TYPE* input, int size) {
 
     cl_ulong wg_size = LSZ;
 
+    if (size < wg_size)
+        wg_size = size;
+
     uint64_t time_spent = 0;
     for (int scale = 2; scale <= size; scale <<= 1) {
         if (scale <= wg_size) {
-            ev = bitonic_small_scale(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(scale)}
-                            , buf_sort, scale);
+            ev = bitonic_small_size(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(wg_size)}
+                            , buf_sort, scale / 2, scale);
             ev.wait();
             time_spent += (ev.getProfilingInfo<CL_PROFILING_COMMAND_END>() - \
                            ev.getProfilingInfo<CL_PROFILING_COMMAND_START>()) / 1000000;
@@ -134,7 +135,7 @@ uint64_t Ocl::run(TYPE* input, int size) {
                     ev = bitonic_small_size(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(wg_size)}
                                           , buf_sort, j,  scale);
                 else 
-                    ev = bitonic_slow(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(1)}
+                    ev = bitonic_slow(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(wg_size)}
                                     , buf_sort, j, scale);
                 ev.wait();
                 time_spent += (ev.getProfilingInfo<CL_PROFILING_COMMAND_END>() - \

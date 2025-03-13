@@ -65,7 +65,7 @@ static void bm_stdSort(benchmark::State& st) {
 
 BENCHMARK(bm_oclSort)->Range(8, 1 << 20);
 BENCHMARK(bm_stdSort)->Range(8, 1 << 20);
-BENCHMARK(bm_oclSort)->Range(1 << 21, 1  << 24)->Iterations(5);
-BENCHMARK(bm_stdSort)->Range(1 << 21, 1  << 24)->Iterations(5);
+BENCHMARK(bm_oclSort)->Range(1 << 21, 1  << 24)->Iterations(2);
+BENCHMARK(bm_stdSort)->Range(1 << 21, 1  << 24)->Iterations(2);
 
 BENCHMARK_MAIN();
