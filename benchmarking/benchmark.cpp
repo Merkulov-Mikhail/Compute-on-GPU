@@ -31,15 +31,13 @@ static void bm_oclSort(benchmark::State& st) {
     std::vector<int> data;
 
     Ocl ocl{KERNEL};
+    size_t size = st.range(0);
+    data.resize(size);
+    randinit(data.begin(), data.end());
+    ocl.writeToBuffer(data.data(), size);
 
     for (auto _ : st) {
-        size_t size = st.range(0);
-        
-        data.resize(size);
-        randinit(data.begin(), data.end());
-
-        ocl.run(data.data(), data.size());
-
+        ocl.run();
         // if (!std::is_sorted(data.begin(), data.end())) {
         //     st.SkipWithError("OclSort does not sort...");
         // }
@@ -48,12 +46,12 @@ static void bm_oclSort(benchmark::State& st) {
 
 static void bm_stdSort(benchmark::State& st) {
     std::vector<int> data;
+
+    int size = st.range(0);
+    data.resize(size);
+    randinit(data.begin(), data.end());
+    
     for (auto _ : st) {
-        int size = st.range(0);
-
-        data.resize(size);
-        randinit(data.begin(), data.end());
-
         std::sort(data.begin(), data.end());
 
         // if (!std::is_sorted(data.begin(), data.end())) {
@@ -63,9 +61,27 @@ static void bm_stdSort(benchmark::State& st) {
 }
 
 
-BENCHMARK(bm_oclSort)->Range(8, 1 << 20);
-BENCHMARK(bm_stdSort)->Range(8, 1 << 20);
-BENCHMARK(bm_oclSort)->Range(1 << 21, 1  << 24)->Iterations(2);
-BENCHMARK(bm_stdSort)->Range(1 << 21, 1  << 24)->Iterations(2);
+BENCHMARK(bm_oclSort)->Range(32, 32);
+BENCHMARK(bm_stdSort)->Range(32, 32);
+
+BENCHMARK(bm_oclSort)->Range(256, 256);
+BENCHMARK(bm_stdSort)->Range(256, 256);
+BENCHMARK(bm_oclSort)->Range(4096, 4096);
+BENCHMARK(bm_stdSort)->Range(4096, 4096);
+
+BENCHMARK(bm_oclSort)->Range(32768, 32768);
+BENCHMARK(bm_stdSort)->Range(32768, 32768);
+
+BENCHMARK(bm_oclSort)->Range(262144, 262144);
+BENCHMARK(bm_stdSort)->Range(262144, 262144);
+
+
+BENCHMARK(bm_oclSort)->Range(1048576, 1048576);
+BENCHMARK(bm_stdSort)->Range(1048576, 1048576);
+
+
+// BENCHMARK(bm_stdSort)->Range(8, 1 << 20);
+BENCHMARK(bm_oclSort)->Range(1 << 22, 1  << 26)->Iterations(2);
+BENCHMARK(bm_stdSort)->Range(1 << 22, 1  << 26)->Iterations(2);
 
 BENCHMARK_MAIN();

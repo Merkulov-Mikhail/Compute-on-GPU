@@ -24,3 +24,4 @@ set_target_properties(main PROPERTIES
     CXX_STANDARD_REQUIRED ON)
 
 target_link_libraries(main PRIVATE OpenCL::OpenCL)
+target_compile_definitions(main PRIVATE -DLOGGING=1)

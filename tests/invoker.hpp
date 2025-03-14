@@ -38,7 +38,9 @@ namespace GPU_tests {
         std::copy(array_gpu.begin(), array_gpu.end(), std::ostream_iterator<int>(std::cout, " "));
         std::cout << std::endl;
         #endif
-        app.run(array_gpu.data(), N);
+        app.writeToBuffer(array_gpu.data(), N);
+        app.run();
+        app.readFromBuffer(array_gpu.data());
         get_right_answer(array_cpu);
 
         #ifdef DEBUG

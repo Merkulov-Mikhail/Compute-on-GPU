@@ -15,9 +15,9 @@
 #define LOGGING 0
 #endif //LOGGING
 
-#ifndef LSZ
-#define LSZ 1024
-#endif //LSZ
+// #ifndef LSZ
+// #define LSZ 1024
+// #endif //LSZ
 
 #define dbgs \
     if(!LOGGING){\
@@ -32,8 +32,11 @@ private:
     cl::Device       device_;
     cl::Context      context_;
     cl::CommandQueue queue_;
-    std::string      code_;
     cl::Program      program_;
+    cl::Kernel       kernel_fast_;
+    cl::Kernel       kernel_slow_;
+    cl::Buffer       buffer_;
+    cl::size_type    size_;
 
     using functor_t_ = cl::KernelFunctor<cl::Buffer, int, int>;
     using args       = cl::EnqueueArgs;
@@ -44,19 +47,28 @@ private:
 
 public:
 
-    Ocl(const std::string& file_name): platform_(get_platform()), device_(get_device(platform_)), context_(create_context(platform_)) {
-        queue_ = cl::CommandQueue(context_, cl::QueueProperties::Profiling | cl::QueueProperties::OutOfOrder);
-        code_ = readFile(file_name);
-        code_ = std::string("#define TYPE ") + STYPE(TYPE) + "\n" + code_; 
+    Ocl(const std::string& file_name): platform_(get_platform()), device_(get_device(platform_)), context_(device_),
+                                       queue_(context_, device_, cl::QueueProperties::Profiling), buffer_(context_, CL_MEM_READ_WRITE, 0, nullptr) {
+        std::string code = readFile(file_name);
+        code = std::string("#define TYPE ") + STYPE(TYPE) + "\n" + code; 
+
         dbgs << "Chosen platform: " << platform_.getInfo<CL_PLATFORM_NAME>() << "\n";
         dbgs << "Chosen device: " << device_.getInfo<CL_DEVICE_NAME>() << "\n";
 
-        program_ = cl::Program{context_, code_};
+        program_ = cl::Program{context_, code};
+        #ifdef LSZ
         std::string buildOptions = "-DLSZ=" + std::to_string(LSZ);
-        program_.build(buildOptions.c_str());
-    }    
+        #else
+        std::string buildOptions = "-DLSZ=" + device_.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+        #endif
+        program_.build(device_, buildOptions.c_str());
+        kernel_fast_ = cl::Kernel(program_, "bitonic_fast");
+        kernel_slow_ = cl::Kernel(program_, "bitonic_slow");
+    }
 
-    uint64_t run(TYPE* input, int size);
+    uint64_t run();
+    void writeToBuffer (TYPE* input, int size);
+    void readFromBuffer(TYPE* output) const;
 }; // Ocl
 
 
@@ -79,7 +91,8 @@ cl::Platform Ocl::get_platform() {
             return cl::Platform(plat());
         }
     }
-    throw std::runtime_error("no GPU platform");
+    dbgs << "No GPU platform found, switching to a default one\n";
+    return cl::Platform::getDefault();
 }
 
 
@@ -87,8 +100,10 @@ cl::Device Ocl::get_device(const cl::Platform& pl) {
     std::vector<cl::Device> devices;
     pl.getDevices(CL_DEVICE_TYPE_GPU, &devices);
 
-    if (devices.empty())
-        throw std::runtime_error("no GPU device");
+    if (devices.empty()) {
+        dbgs << "No GPU device found, switching to a default one\n";
+        return cl::Device::getDefault();
+    }
     return devices[0];
 }
 
@@ -99,56 +114,91 @@ cl::Context Ocl::create_context(const cl::Platform& platform) {
 }
 
 
-uint64_t Ocl::run(TYPE* input, int size) {
-    // hehe
+void Ocl::writeToBuffer(TYPE* input, int size) {
+    #if (LOGGING == 1)
+    auto TimeStartWrite = std::chrono::high_resolution_clock::now();
+    #endif
+
     assert(size % 2 == 0);
-
+    size_ = size;
     cl::size_type bufSZ = size * sizeof(TYPE);
+    buffer_ = cl::Buffer(context_, CL_MEM_READ_WRITE, bufSZ);
+    queue_.enqueueWriteBuffer(buffer_, CL_TRUE, 0, bufSZ, input);
+    #if (LOGGING == 1)
+    auto TimeFinWrite = std::chrono::high_resolution_clock::now();
+    auto DurWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(TimeFinWrite - TimeStartWrite).count();
+    dbgs << "Write buffer in: " << DurWrite << "\n";
+    #endif
+}
 
-    cl::Buffer buf_sort{context_, CL_MEM_READ_WRITE, bufSZ};
-    cl::copy(queue_, input, input + size, buf_sort);
+// assumes, that ouput can handle at least size_ items
+void Ocl::readFromBuffer(TYPE* output) const {
+    #if (LOGGING == 1)
+    auto TimeStartRead = std::chrono::high_resolution_clock::now();
+    #endif
+    cl::size_type bufSZ = size_ * sizeof(TYPE);
+    queue_.enqueueReadBuffer(buffer_, CL_TRUE, 0, bufSZ, output);
+    queue_.finish();
+    #if (LOGGING == 1)
+    auto TimeFinRead = std::chrono::high_resolution_clock::now();
+    auto DurRead = std::chrono::duration_cast<std::chrono::nanoseconds>(TimeFinRead - TimeStartRead).count();
+    dbgs << "Read buffer in: " << DurRead << "\n";
+    #endif
+}
 
-    functor_t_ bitonic_small_size (program_, "bitonic_small_localsize");
-    functor_t_ bitonic_slow       (program_, "bitonic_slow");
 
-    cl::NDRange globalRange(size);
+uint64_t Ocl::run() {
+    // hehe
 
-    cl::Event ev;
+    cl::size_type bufSZ = size_ * sizeof(TYPE);
 
+    kernel_fast_.setArg(0, buffer_);
+    kernel_slow_.setArg(0, buffer_);
+    
+
+    #ifdef LSZ
     cl_ulong wg_size = LSZ;
+    #else
+    cl_ulong wg_size = device_.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+    #endif
 
-    if (size < wg_size)
-        wg_size = size;
+    if (size_ < wg_size)
+        wg_size = size_;
 
     uint64_t time_spent = 0;
-    for (int scale = 2; scale <= size; scale <<= 1) {
+
+    cl::NDRange globalSize(size_);
+    cl::NDRange localSize (wg_size);
+
+    auto TimeStartofCycle = std::chrono::high_resolution_clock::now();
+
+    for (int scale = 2; scale <= size_; scale <<= 1) {
+
         if (scale <= wg_size) {
-            ev = bitonic_small_size(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(wg_size)}
-                            , buf_sort, scale / 2, scale);
-            ev.wait();
-            time_spent += (ev.getProfilingInfo<CL_PROFILING_COMMAND_END>() - \
-                           ev.getProfilingInfo<CL_PROFILING_COMMAND_START>()) / 1000000;
+            kernel_fast_.setArg(1, scale / 2);
+            kernel_fast_.setArg(2, scale);
+            queue_.enqueueNDRangeKernel(kernel_fast_, cl::NullRange, globalSize, localSize);
         }
         else {
             for (int j = scale / 2; j > 0; j >>= 1) {
-                if (j <= wg_size / 2) 
-                    ev = bitonic_small_size(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(wg_size)}
-                                          , buf_sort, j,  scale);
-                else 
-                    ev = bitonic_slow(args{queue_, static_cast<cl::size_type>(size), static_cast<cl::size_type>(wg_size)}
-                                    , buf_sort, j, scale);
-                ev.wait();
-                time_spent += (ev.getProfilingInfo<CL_PROFILING_COMMAND_END>() - \
-                            ev.getProfilingInfo<CL_PROFILING_COMMAND_START>()) / 1000000;
-
-                if (j <= wg_size / 2)
+                if (j <= wg_size / 2) {
+                    kernel_fast_.setArg(1, j);
+                    kernel_fast_.setArg(2, scale);
+                    queue_.enqueueNDRangeKernel(kernel_fast_, cl::NullRange, globalSize, localSize);
                     break;
+                }
+                else {
+                    kernel_slow_.setArg(1, j);
+                    kernel_slow_.setArg(2, scale);
+                    queue_.enqueueNDRangeKernel(kernel_slow_, cl::NullRange, globalSize, localSize);
+                }
             }
         }
     }
 
-    cl::copy(queue_, buf_sort, input, input + size);
-    return time_spent;
+    auto TimeFinofCycle = std::chrono::high_resolution_clock::now();
+    auto DurCycle = std::chrono::duration_cast<std::chrono::nanoseconds>(TimeFinofCycle - TimeStartofCycle).count();
+    return DurCycle;
 }
 
 
@@ -167,7 +217,7 @@ TYPE debug[debug_size];
 for (int scale = 2; scale <= size; scale *= 2) {
 
     std::cout << "Now stage " << scale << std::endl;
-    ev = cas(Args, buf_sort, debug_buffer, scale);
+    ev = cas(Args, buffer, debug_buffer, scale);
 
     cl::copy(queue_, debug_buffer, debug, debug + debug_size);
     for (int i = 0; i < debug_size; i++) {
@@ -177,7 +227,7 @@ for (int scale = 2; scale <= size; scale *= 2) {
     }
     std::cout << "\n";
 
-    cl::copy(queue_, buf_sort, input, input + size);
+    cl::copy(queue_, buffer, input, input + size);
     for (int i = 0; i < size; i++) 
         std::cout << input[i] << " ";
     std::cout << "\n\n";

@@ -5,13 +5,12 @@
 #endif
 
 
-__kernel void bitonic_small_localsize(__global TYPE* g_mem, int j, int stage) {
+__kernel void bitonic_fast(__global TYPE* g_mem, int j, int stage) {
     int to_cmp, i, direction;
     TYPE tmp;
     int id = get_global_id(0);
     int lid = get_local_id(0);
     __local TYPE l_mem[LSZ];
-
     l_mem[lid] = g_mem[id];
     barrier(CLK_LOCAL_MEM_FENCE);
 
