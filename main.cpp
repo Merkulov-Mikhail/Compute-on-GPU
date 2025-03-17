@@ -59,7 +59,7 @@ auto main(int argc, char* argv[]) -> int {
     Dur = std::chrono::duration_cast<std::chrono::nanoseconds>(TimeFin - TimeStart).count();
     std::cout << "CPU time measured with\t(" << sz << "): \t" << Dur << " ns" << std::endl;
 
-    if (!std::is_sorted(first_vector.begin(), first_vector.end())) {
+    if (std::is_sorted(first_vector.begin(), first_vector.end())) {
         std::cout << "sorted correctly\n";
     }
     else {

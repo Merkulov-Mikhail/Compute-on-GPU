@@ -8,7 +8,10 @@
 #include <iostream>
 
 
-#define TYPE     int
+#ifndef TYPE
+#define TYPE int
+#endif
+
 #define STRINGIFY(X) #X
 #define STYPE(X) STRINGIFY(X)
 #ifndef LOGGING
@@ -26,6 +29,7 @@
 
 std::string readFile(const std::string& filename);
 
+
 class Ocl {
 private:
     cl::Platform     platform_;
@@ -38,7 +42,7 @@ private:
     cl::Buffer       buffer_;
     cl::size_type    size_;
 
-    using functor_t_ = cl::KernelFunctor<cl::Buffer, int, int>;
+    using functor_t_ = cl::KernelFunctor<cl::Buffer, TYPE, TYPE>;
     using args       = cl::EnqueueArgs;
 
     static cl::Platform get_platform();
@@ -59,8 +63,9 @@ public:
         #ifdef LSZ
         std::string buildOptions = "-DLSZ=" + std::to_string(LSZ);
         #else
-        std::string buildOptions = "-DLSZ=" + device_.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>();
+        std::string buildOptions = std::string("-DLSZ=") + std::to_string(device_.getInfo<CL_DEVICE_MAX_WORK_GROUP_SIZE>());
         #endif
+
         program_.build(device_, buildOptions.c_str());
         kernel_fast_ = cl::Kernel(program_, "bitonic_fast");
         kernel_slow_ = cl::Kernel(program_, "bitonic_slow");

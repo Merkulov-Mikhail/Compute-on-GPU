@@ -1,10 +1,3 @@
-#define TYPE int
-
-#ifndef LSZ
-#define LSZ 1024
-#endif
-
-
 __kernel void bitonic_fast(__global TYPE* g_mem, int j, int stage) {
     int to_cmp, i, direction;
     TYPE tmp;
