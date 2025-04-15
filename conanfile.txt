@@ -1,0 +1,11 @@
+[requires]
+gtest/1.16.0
+opencl-clhpp-headers/2023.12.14
+opencl-icd-loader/2023.12.14
+
+[generators]
+CMakeDeps
+CMakeToolchain
+
+[layout]
+cmake_layout

@@ -10,6 +10,3 @@ set_target_properties(tests PROPERTIES
     CXX_STANDARD_REQUIRED ON)
 
 target_link_libraries(tests PRIVATE GTest::GTest GTest::gtest_main OpenCL::OpenCL)
-
-include(GoogleTest)
-gtest_discover_tests(tests)

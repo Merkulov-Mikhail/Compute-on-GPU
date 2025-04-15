@@ -4,3 +4,5 @@ build
 *\.out
 *_test
 .vscode
+Testing
+venv

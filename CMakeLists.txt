@@ -25,3 +25,7 @@ set_target_properties(main PROPERTIES
 
 target_link_libraries(main PRIVATE OpenCL::OpenCL)
 target_compile_definitions(main PRIVATE -DLOGGING=1)
+
+
+include(GoogleTest)
+add_test(NAME main_tests COMMAND tests)

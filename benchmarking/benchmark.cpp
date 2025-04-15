@@ -42,6 +42,11 @@ static void bm_oclSort(benchmark::State& st) {
         //     st.SkipWithError("OclSort does not sort...");
         // }
     }
+    ocl.readFromBuffer(data.data());
+
+    if (!std::is_sorted(data.begin(), data.end()))
+        throw std::runtime_error("Your bitonic sort does not sort");
+        
 }
 
 static void bm_stdSort(benchmark::State& st) {
