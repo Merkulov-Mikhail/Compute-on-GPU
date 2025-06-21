@@ -111,6 +111,7 @@ public:
     uint64_t run();
     void writeToBuffer (TYPE* input, int size);
     void readFromBuffer(TYPE* output) const;
+    void queue_finish() const;
 }; // Ocl
 
 //----------------------------------------------
@@ -166,6 +167,10 @@ uint64_t Ocl::run() {
     return dur_cycle;
 }
 
+void Ocl::queue_finish() const {
+    queue_.finish();
+}
+
 // assumes, that ouput can handle at least n_elems_ items
 void Ocl::readFromBuffer(TYPE* output) const {
     auto TimeStartRead = std::chrono::high_resolution_clock::now();
@@ -176,7 +181,7 @@ void Ocl::readFromBuffer(TYPE* output) const {
 
     auto TimeFinRead = std::chrono::high_resolution_clock::now();
     auto DurRead = std::chrono::duration_cast<std::chrono::nanoseconds>(TimeFinRead - TimeStartRead).count();
-    dbgs << "Read buffer in: " << DurRead << "\n";
+    dbgs << "Read buffer in:\t" << DurRead << " ns\n";
 }
 
 void Ocl::writeToBuffer(TYPE* input, int size) {
@@ -192,7 +197,7 @@ void Ocl::writeToBuffer(TYPE* input, int size) {
 
     auto TimeFinWrite = std::chrono::high_resolution_clock::now();
     auto DurWrite = std::chrono::duration_cast<std::chrono::nanoseconds>(TimeFinWrite - TimeStartWrite).count();
-    dbgs << "Write buffer in: " << DurWrite << "\n";
+    dbgs << "Write buffer in:\t" << DurWrite << " ns\n";
 }
 
 cl::Context Ocl::create_context(const cl::Platform& platform) {
